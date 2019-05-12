@@ -92,5 +92,5 @@ void decrypt(long int n, long int key, long int m[], long int en[])
 	m[i]=-1; 
 	printf("\nTHE DECRYPTED MESSAGE IS\n"); 
 	for(i=0;m[i]!=-1;i++) 
-		printf("%c",m[i]); 
+		printf("%c",m[i]);
 }

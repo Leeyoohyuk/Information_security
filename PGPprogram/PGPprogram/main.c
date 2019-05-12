@@ -18,30 +18,60 @@ void gen_sdes_keys(int keys[][8]);
 
 void main()
 {
-	char msg[1000];
-	long int m[1000], en[1000]; // rsa 관련
+	char msg[1000]; // 메세지
+	long int m[1000], en[1000]; // int 형 메세지, 암호화 메세지
+	// --------------------------------------------------------------
 	int keys[2][8];
-	long int p1, q1, n1, e1, d1;
-	long int p2, q2, n2, e2, d2;
+	long int p1, q1, n1, e1, d1; // pra1, pua1
+	long int p2, q2, n2, e2, d2; // prb2, pub2
 	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성, 해싱 -------
 	printf("\nGenerate First Public, Private");
 	rsa(&p1, &q1, &n1, &e1, &d1);
-	printf("\nGenerate Second Public, Private");
-	rsa(&p2, &q2, &n2, &e2, &d2);
-	printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p1, q1, n1, e1, d1);
-	printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p2, q2, n2, e2, d2);
-	printf("\nGenerate Session key1,2 for DES\n");
-	gen_sdes_keys(keys);
-	printf("\n");
-	MDFile("a.txt");
-	// ----------------------------------------------------------
-	printf("\nENTER MESSAGE\n");
+	//printf("\nGenerate Second Public, Private");
+	//rsa(&p2, &q2, &n2, &e2, &d2);
+	//printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p1, q1, n1, e1, d1);
+	//printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p2, q2, n2, e2, d2);
+	//printf("\nGenerate Session key1,2 for DES\n");
+	//gen_sdes_keys(keys);
+	//printf("\n");
+	// --------------------------------------------------------------
+	MDFile("test.txt");
 	fflush(stdin);
-	scanf("%s", msg);
+	FILE *hash; // hash file
+	FILE *org; // origin file
+	FILE *sum; // origin + hash mac file
+	if ((hash = fopen("hash.txt", "rb")) == NULL)
+		printf("%s can't be opened\n", "hash.txt");
+	else
+	{
+		fgets(msg, sizeof(msg), hash);
+	}
+	fclose(hash);
 	for (int i = 0; msg[i] != NULL; i++)
+	{
 		m[i] = msg[i];
+	}
 	encrypt(n1, d1, msg, m, en); // 해시 -> mac
-
+	if ((org = fopen("test.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "test.txt");
+	else
+	{
+		char buffer[1000];
+		fgets(buffer, sizeof(buffer), org);
+		if ((sum = fopen("orgNmac.txt", "w")) == NULL)
+			printf("%s can't be opend\n", "orgNmac.txt");
+		else
+		{
+			char buffer2[1000];
+			for (int i = 0; i < strlen(msg); i++)
+				buffer2[i] = en[i];
+			buffer2[strlen(msg)] = '\n';
+			fwrite(buffer2, 1, strlen(msg)+1, sum);
+			fputs(buffer, sum);
+		}
+	}
+	fclose(org);
+	fclose(sum);
 
 	////encrypting - - - 
 	//int pt[8] = { 0 };
@@ -59,7 +89,7 @@ void main()
 	//for (int i = 0; i < 8; i++)
 	//	printf("%d", ct[i]);
 
-	decrypt(n1, e1, m, en); // mac -> 해시
+	//decrypt(n1, e1, m, en); // mac -> 해시
 
 	return;
 }
@@ -70,23 +100,26 @@ void main()
 static void MDFile(filename)
 char *filename;
 {
-	FILE *file;
+	FILE *org; // input file
+	FILE *hash; // output file
+
 	MD5_CTX context;
 	int len;
 	unsigned char buffer[1024], digest[16];
 
-	if ((file = fopen(filename, "rb")) == NULL)
+	hash = fopen("hash.txt", "w");
+	if ((org = fopen(filename, "rb")) == NULL)
 		printf("%s can't be opened\n", filename);
-
 	else
 	{
 		MDInit(&context);
-		while (len = fread(buffer, 1, 1024, file))
+		while (len = fread(buffer, 1, 1024, org))
 			MDUpdate(&context, buffer, len);
 		MDFinal(digest, &context);
-
-		fclose(file);
-
+		for (int i = 0; i<16; i++)
+			fprintf(hash, "%02x", digest[i]);
+		fclose(org);
+		fclose(hash);
 		printf("MD%d (%s) = ", MD, filename);
 		MDPrint(digest);
 		printf("\n");
