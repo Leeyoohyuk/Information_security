@@ -48,11 +48,11 @@ long int cd(long int x, long int t)
 	} 
 }
 
-void encrypt(long int n, long int key, char msg[], long int m[], long int en[])
+void encrypt(long int n, long int key, int size, int m[], int en[])
 {
 	long int pt,ct,k,len; 
 	int i=0; 
-	len=strlen(msg); 
+	len=size; 
 	while(i!=len) 
 	{ 
 		pt=m[i]; 
@@ -65,14 +65,14 @@ void encrypt(long int n, long int key, char msg[], long int m[], long int en[])
 		} 
 		ct=k+96; 
 		en[i]=ct; 
-		i++; 
+		i++;
 	} 
 	en[i]=-1;
 	printf("\nTHE ENCRYPTED MESSAGE IS\n"); 
 	for(i=0;en[i]!=-1;i++) 
 		printf("%c",en[i]); 
 } 
-void decrypt(long int n, long int key, long int m[], long int en[])
+void decrypt(long int n, long int key, int m[], int en[])
 { 
 	long int pt,ct,k; 
 	int i=0;

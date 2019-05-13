@@ -2,6 +2,8 @@
 #include "rsa.h"
 #include "sdes.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include <time.h>
 #include <string.h>
 
@@ -18,76 +20,119 @@ void gen_sdes_keys(int keys[][8]);
 
 void main()
 {
-	char msg[1000]; // 메세지
-	long int m[1000], en[1000]; // int 형 메세지, 암호화 메세지
-	// --------------------------------------------------------------
+	FILE *org = fopen("test.txt","rb"); // origin file
+	FILE *hash; // hash file
+	FILE *sum; // origin + hash mac file
+	FILE *sum_enc; // origin + hash mac encryption
+	FILE *Etxt;
+	fseek(org, 0, SEEK_END);
+	int size = ftell(org);
+	fseek(org, 0, SEEK_SET);
+	int key[10];
 	int keys[2][8];
 	long int p1, q1, n1, e1, d1; // pra1, pua1
 	long int p2, q2, n2, e2, d2; // prb2, pub2
+	 
 	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성, 해싱 -------
 	printf("\nGenerate First Public, Private");
 	rsa(&p1, &q1, &n1, &e1, &d1);
-	//printf("\nGenerate Second Public, Private");
-	//rsa(&p2, &q2, &n2, &e2, &d2);
+	printf("\nGenerate Second Public, Private");
+	rsa(&p2, &q2, &n2, &e2, &d2);
 	//printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p1, q1, n1, e1, d1);
 	//printf("\nKEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p2, q2, n2, e2, d2);
-	//printf("\nGenerate Session key1,2 for DES\n");
-	//gen_sdes_keys(keys);
-	//printf("\n");
-	// --------------------------------------------------------------
-	MDFile("test.txt");
+	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성, 해싱 -------
+	printf("\nGenerate Session key1,2 for DES\n");
+	gen_sdes_keys(key, keys);
+	printf("\n");
+	// MD5 hash
+	MDFile("test.txt", size);
 	fflush(stdin);
-	FILE *hash; // hash file
-	FILE *org; // origin file
-	FILE *sum; // origin + hash mac file
+	// HASH read
 	if ((hash = fopen("hash.txt", "rb")) == NULL)
 		printf("%s can't be opened\n", "hash.txt");
-	else
-	{
-		fgets(msg, sizeof(msg), hash);
-	}
+	fseek(hash, 0, SEEK_END);
+	int hash_size = ftell(hash);
+	fseek(hash, 0, SEEK_SET);
+	char *msg = malloc(sizeof(char)*hash_size);
+	int *m = malloc(sizeof(int)*hash_size);
+	int *en = malloc(sizeof(int)*(hash_size+1));
+	fread(msg, 1, hash_size, hash);
 	fclose(hash);
-	for (int i = 0; msg[i] != NULL; i++)
+	for (int i = 0; i < hash_size; i++)
 	{
 		m[i] = msg[i];
 	}
-	encrypt(n1, d1, msg, m, en); // 해시 -> mac
+	// HASH -> MAC
+	encrypt(n1, d1, hash_size, m, en);
+	// Origin msg + MAC
 	if ((org = fopen("test.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "test.txt");
 	else
 	{
-		char buffer[1000];
-		fgets(buffer, sizeof(buffer), org);
-		if ((sum = fopen("orgNmac.txt", "w")) == NULL)
+		char *buffer = malloc(sizeof(char)*size);
+		fread(buffer, 1, size, org);
+		if ((sum = fopen("orgNmac.txt", "wb")) == NULL)
 			printf("%s can't be opend\n", "orgNmac.txt");
 		else
 		{
-			char buffer2[1000];
-			for (int i = 0; i < strlen(msg); i++)
+			char *buffer2 = malloc(sizeof(char)*hash_size); 
+			for (int i = 0; i < hash_size; i++)
 				buffer2[i] = en[i];
-			buffer2[strlen(msg)] = '\n';
-			fwrite(buffer2, 1, strlen(msg)+1, sum);
-			fputs(buffer, sum);
+			fwrite(buffer2, 1, hash_size, sum);
+			fwrite(buffer, 1, size, sum);
 		}
 	}
 	fclose(org);
 	fclose(sum);
+	// 전체 encrypting - - - byte 단위, 세션 키 사용한 sdes
+	int pt[8] = { 0 };
+	int ct[8] = { 0 };
 
-	////encrypting - - - 
-	//int pt[8] = { 0 };
-	//int ct[8] = { 0 };
-	//printf("enter plain text binary bits:");// 1바이트씩 읽어옴
-	//for (int i = 0; i < 8; i++)
-	//	scanf("%d", &pt[i]);
-	//en_de(pt, 0, keys);
-	//printf("\ncipher text :");
-	//for (int i = 0; i < 8; i++)
-	//	printf("%d", ct[i]);
-	////decrypting - - -
-	//en_de(ct, 1, keys);
-	//printf("\nplain text (after decrypting):");
-	//for (int i = 0; i < 8; i++)
-	//	printf("%d", ct[i]);
+	if ((sum = fopen("orgNmac.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "orgNmac.txt");
+	else
+	{
+		sum_enc = fopen("orgNmacenc.txt", "wb");
+		char bf;
+		while (EOF != (bf = fgetc(sum)))
+		{
+			int input = bf;
+			for (int i = 7; i >= 0; i--) {
+				pt[i] = ( input & (1 << i)) != 0;
+			}
+			en_de(pt, 0, keys, ct); // 1 바이트 인코딩 sdes 사용
+			int output = 0;
+			for (int i = 7; i >= 0; i--)
+			{
+				if (ct[i] == 1)
+					output += pow(2, (double)(7 - i));
+			}
+			char ch[1] = {output};
+			fwrite(ch, 1, 1, sum_enc);
+		}
+		fclose(sum_enc);
+	}
+	// SESSION KEY ENCRYPTION
+	int skeyen[11];
+	encrypt(n2, e2, 10, key, skeyen);
+	// SESSION KEY ATTATCH
+	if ((sum_enc = fopen("orgNmacenc.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "orgNmac.txt");
+	else {
+		fseek(sum_enc, 0, SEEK_END);
+		int enc_size = ftell(sum_enc);
+		fseek(sum_enc, 0, SEEK_SET);
+		char *buffer = malloc(sizeof(char)*enc_size);
+		fread(buffer, 1, enc_size, sum_enc);
+		Etxt = fopen("EText.txt", "wb");
+		char *buffer2 = malloc(sizeof(char)*10);
+		for (int i = 0; i < 10; i++)
+			buffer2[i] = skeyen[i];
+		fwrite(buffer2, 1, 10, Etxt);
+		fwrite(buffer, 1, enc_size, Etxt);
+		fclose(sum_enc);
+		fclose(Etxt);
+	}
 
 	//decrypt(n1, e1, m, en); // mac -> 해시
 
@@ -97,24 +142,26 @@ void main()
 /* 
 	Digests a file and prints the result.
  */
-static void MDFile(filename)
+static void MDFile(filename, size)
 char *filename;
+int size;
 {
 	FILE *org; // input file
 	FILE *hash; // output file
-
 	MD5_CTX context;
 	int len;
-	unsigned char buffer[1024], digest[16];
+	char *temp = (char*)malloc(sizeof(char)*size);
+	unsigned char digest[16];
 
-	hash = fopen("hash.txt", "w");
+	hash = fopen("hash.txt", "wb");
 	if ((org = fopen(filename, "rb")) == NULL)
 		printf("%s can't be opened\n", filename);
 	else
 	{
 		MDInit(&context);
-		while (len = fread(buffer, 1, 1024, org))
-			MDUpdate(&context, buffer, len);
+//		while (len = fread(buffer, 1, 1000, org))
+		int len = fread(temp, 1, size, org);
+		MDUpdate(&context, temp, len);
 		MDFinal(digest, &context);
 		for (int i = 0; i<16; i++)
 			fprintf(hash, "%02x", digest[i]);
@@ -123,6 +170,7 @@ char *filename;
 		printf("MD%d (%s) = ", MD, filename);
 		MDPrint(digest);
 		printf("\n");
+		free(temp);
 	}
 }
 
@@ -162,13 +210,13 @@ void rsa(long int *p, long int *q, long int *n, long int *e, long int *d)
 	ce(t, e, d, *p, *q);
 }
 
-void gen_sdes_keys(int keys[][8])
+void gen_sdes_keys(int key[], int keys[][8])
 {
-	int key[10], i, keyip[10];
+	srand(time(NULL));
+	int i, keyip[10];
 	int p10[] = { 3,5,2,7,4,10,1,9,8,6 }, p8[] = { 6,3,7,4,8,5,10,9 };
-	printf("\nEnter key 10 digit:");
 	for (i = 0; i < 10; i++)
-		scanf("%d", &key[i]);
+		key[i] = rand() % 2;
 	for (i = 0; i < 10; i++) // permutation p10
 		keyip[i] = key[p10[i] - 1];
 	left_shift(keyip, 1);	 // left shifting (array,no of bts)

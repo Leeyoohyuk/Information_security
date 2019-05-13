@@ -18,7 +18,7 @@
 //**************************************
 
 #include <stdio.h>
-int l[4], r[4], tempct[8];
+int l[4], r[4];
 void sbox(int sip[],int p[],int sbno,int i)
 {
 	int sbox[2][4][4]={1,0,3,2,3,2,1,0,0,2,1,3,3,1,3,2,0,1,2,3,2,0,1,3,3,0,1,0,2,1,0,3};
@@ -67,7 +67,7 @@ void left_shift(int keyip[],int nob)
 }
 
 
-void en_de(int pt[],int c, int keys[][8])
+void en_de(int pt[],int c, int keys[][8], int ct[])
 {
 	int ip[]={2,6,3,1,4,8,5,7},ipi[]={4,1,3,5,7,2,8,6},t[8],i;
 	for(i=0;i<8;i++)// performing permutation on input bits!!
@@ -78,11 +78,10 @@ void en_de(int pt[],int c, int keys[][8])
 	cmp_fun(c, keys);//round 0+1 using key 0+1
 	for(i=0;i<4;i++) //swapping left & right
 		r[i]=l[i]+r[i],l[i]=r[i]-l[i],r[i]=r[i]-l[i];
-	printf("\n\n");
 	cmp_fun(!c, keys); // round 1+1 wid key1+1 wid swapped bits
 	for(i=0;i<8;i++)
 		if(i<4)	t[i]=l[i];
 		else	t[i]=r[i-4];
 	for(i=0;i<8;i++)
-		tempct[i] = t[ipi[i]-1];
+		ct[i] = t[ipi[i]-1];
 }
