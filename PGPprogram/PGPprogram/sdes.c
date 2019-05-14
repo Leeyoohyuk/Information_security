@@ -70,11 +70,13 @@ void left_shift(int keyip[],int nob)
 void en_de(int pt[],int c, int keys[][8], int ct[])
 {
 	int ip[]={2,6,3,1,4,8,5,7},ipi[]={4,1,3,5,7,2,8,6},t[8],i;
-	for(i=0;i<8;i++)// performing permutation on input bits!!
-		if(i<4)
-			l[i]=pt[ip[i]-1];
+	for (i = 0; i < 8; i++)// performing permutation on input bits!!
+	{
+		if (i < 4)
+			l[i] = pt[ip[i] - 1];
 		else
-			r[i-4] = pt[ip[i]-1];
+			r[i - 4] = pt[ip[i] - 1];
+	}
 	cmp_fun(c, keys);//round 0+1 using key 0+1
 	for(i=0;i<4;i++) //swapping left & right
 		r[i]=l[i]+r[i],l[i]=r[i]-l[i],r[i]=r[i]-l[i];

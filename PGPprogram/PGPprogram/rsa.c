@@ -55,8 +55,7 @@ void encrypt(long int n, long int key, int size, int m[], int en[])
 	len=size; 
 	while(i!=len) 
 	{ 
-		pt=m[i]; 
-		pt=pt-96; 
+		pt=m[i]-96; 
 		k=1; 
 		for(int j=0;j<key;j++) 
 		{ 
@@ -70,7 +69,7 @@ void encrypt(long int n, long int key, int size, int m[], int en[])
 	en[i]=-1;
 	printf("\nTHE ENCRYPTED MESSAGE IS\n"); 
 	for(i=0;en[i]!=-1;i++) 
-		printf("%c",en[i]); 
+		printf("%c",en[i]);
 } 
 void decrypt(long int n, long int key, int m[], int en[])
 { 
@@ -78,17 +77,17 @@ void decrypt(long int n, long int key, int m[], int en[])
 	int i=0;
 	while(en[i]!=-1)
 	{ 
-		ct=en[i]-96; 
+		ct=en[i]-96;
 		k=1; 
 		for(int j=0;j<key;j++) 
 		{ 
 			k=k*ct; 
 			k=k%n; 
 		} 
-		pt=k+96; 
-		m[i]=pt; 
-		i++; 
-	} 
+		pt=k+96;
+		m[i]=pt;
+		i++;
+	}
 	m[i]=-1; 
 	printf("\nTHE DECRYPTED MESSAGE IS\n"); 
 	for(i=0;m[i]!=-1;i++) 

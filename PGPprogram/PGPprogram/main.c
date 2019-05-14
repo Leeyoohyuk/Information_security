@@ -21,14 +21,18 @@ void gen_sdes_keys(int keys[][8]);
 void main()
 {
 	FILE *org = fopen("test.txt","rb"); // origin file
-	FILE *hash; // hash file
-	FILE *sum; // origin + hash mac file
-	FILE *sum_enc; // origin + hash mac encryption
-	FILE *Etxt;
+	FILE *hash; // hash
+	FILE *sum_mac; // origin + mac
+	FILE *sum_enc; // En(origin + mac)
+	FILE *Etxt; // En(origin + mac) + session key enc 
+	FILE *sum_dec; // En(origin + mac)
+	FILE *sum_mac2; // origin + mac
+	FILE *hash2; // hash
+	FILE *Dtxt; // dec file
 	fseek(org, 0, SEEK_END);
 	int size = ftell(org);
 	fseek(org, 0, SEEK_SET);
-	int key[10];
+	int key[11];
 	int keys[2][8];
 	long int p1, q1, n1, e1, d1; // pra1, pua1
 	long int p2, q2, n2, e2, d2; // prb2, pub2
@@ -64,41 +68,43 @@ void main()
 	}
 	// HASH -> MAC
 	encrypt(n1, d1, hash_size, m, en);
-	// Origin msg + MAC
+	// ATTACH MAC AT ORIGIN MSG
 	if ((org = fopen("test.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "test.txt");
 	else
 	{
 		char *buffer = malloc(sizeof(char)*size);
 		fread(buffer, 1, size, org);
-		if ((sum = fopen("orgNmac.txt", "wb")) == NULL)
+		if ((sum_mac = fopen("orgNmac.txt", "wb")) == NULL)
 			printf("%s can't be opend\n", "orgNmac.txt");
 		else
 		{
 			char *buffer2 = malloc(sizeof(char)*hash_size); 
 			for (int i = 0; i < hash_size; i++)
 				buffer2[i] = en[i];
-			fwrite(buffer2, 1, hash_size, sum);
-			fwrite(buffer, 1, size, sum);
+			fwrite(buffer2, 1, hash_size, sum_mac);
+			fwrite(buffer, 1, size, sum_mac);
 		}
 	}
 	fclose(org);
-	fclose(sum);
+	fclose(sum_mac);
 	// 전체 encrypting - - - byte 단위, 세션 키 사용한 sdes
 	int pt[8] = { 0 };
 	int ct[8] = { 0 };
 
-	if ((sum = fopen("orgNmac.txt", "rb")) == NULL)
+	if ((sum_mac = fopen("orgNmac.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "orgNmac.txt");
 	else
 	{
 		sum_enc = fopen("orgNmacenc.txt", "wb");
-		char bf;
-		while (EOF != (bf = fgetc(sum)))
+		int bf;
+		while (EOF != (bf = fgetc(sum_mac)))
 		{
-			int input = bf;
-			for (int i = 7; i >= 0; i--) {
-				pt[i] = ( input & (1 << i)) != 0;
+			for (int i = 7; i >= 0; i--)
+			{
+				pt[i] = bf % 2;
+				bf = bf / 2;
+			//	printf("%d", pt[i]);
 			}
 			en_de(pt, 0, keys, ct); // 1 바이트 인코딩 sdes 사용
 			int output = 0;
@@ -107,20 +113,22 @@ void main()
 				if (ct[i] == 1)
 					output += pow(2, (double)(7 - i));
 			}
-			char ch[1] = {output};
+ 			char ch[1] = {output};
 			fwrite(ch, 1, 1, sum_enc);
 		}
 		fclose(sum_enc);
+		fclose(sum_mac);
 	}
 	// SESSION KEY ENCRYPTION
 	int skeyen[11];
+	int enc_size;
 	encrypt(n2, e2, 10, key, skeyen);
-	// SESSION KEY ATTATCH
+	// SESSION KEY ATTACH
 	if ((sum_enc = fopen("orgNmacenc.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "orgNmac.txt");
 	else {
 		fseek(sum_enc, 0, SEEK_END);
-		int enc_size = ftell(sum_enc);
+		enc_size = ftell(sum_enc);
 		fseek(sum_enc, 0, SEEK_SET);
 		char *buffer = malloc(sizeof(char)*enc_size);
 		fread(buffer, 1, enc_size, sum_enc);
@@ -133,7 +141,54 @@ void main()
 		fclose(sum_enc);
 		fclose(Etxt);
 	}
+	// -------------------수신 모듈 복호화 시작 ----------------
+	// SESSION KEY DETACH, PUT FILE (REMAIN TEXT)
+	if((Etxt = fopen("Etext.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "Etext.txt");
+	else {
+		char *buffer = malloc(sizeof(char) * 10);
+		fread(buffer, 1, 10, Etxt);
+		for (int i = 0; i < 10; i++)
+			skeyen[i] = buffer[i];
+		char *buffer2 = malloc(sizeof(char)*enc_size);
+		fread(buffer2, 1, enc_size, Etxt);
+		sum_dec = fopen("orgNmacenc2.txt", "wb");
+		fwrite(buffer2, 1, enc_size, sum_dec);
+		fclose(sum_dec);
+	}
+	// SESSION KEY DECRYPTION
+	decrypt(n2, d2, key, skeyen);
+	// 전체 decryption - - - byte 단위
+	if ((sum_dec = fopen("orgNmacenc2.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "orgNmacenc2.txt");
+	else
+	{
+		sum_mac2 = fopen("orgNmac2.txt", "wb");
+		int bf;
+		while (EOF != (bf = fgetc(sum_dec)))
+		{
+			for (int i = 7; i >= 0; i--)
+			{
+				ct[i] = bf % 2;
+				bf = bf / 2;
+			}
+			en_de(ct, 1, keys, pt); // 1 바이트 디코딩 sdes 사용
+			int output = 0;
+			for (int i = 7; i >= 0; i--)
+			{
+				if (pt[i] == 1)
+					output += pow(2, (double)(7 - i));
+			}
+			char ch[1] = { output };
+			fwrite(ch, 1, 1, sum_mac2);
+		}
+		fclose(sum_dec);
+		fclose(sum_mac2);
+	}
+	// DETACH MAC FROM FILE
 
+	// mac 복호화
+	// 오리진 파일 해시와 비교
 	//decrypt(n1, e1, m, en); // mac -> 해시
 
 	return;
@@ -232,16 +287,3 @@ void gen_sdes_keys(int key[], int keys[][8])
 		printf("%d", keys[1][i]);
 	}
 }
-
-/*
-시나리오
-rsa를 이용해 키를 생성해서 먼저 갖고 있음
-세션키도 미리 갖고 있음
-파일을 열고 md5이용해서 Hash값 생성
-rsa pr a이용한 Hash -> mac 생성
-org mes + mac 생성
-
-compression 생략
-// key main에서 받아오도록 설정해야함, key 양쪽 다 갖고있또록
-rsa pu b이용한 
-*/
