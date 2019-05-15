@@ -48,7 +48,7 @@ long int cd(long int x, long int t)
 	}
 }
 
-void encrypt(long int n, long int key, int size, int m[], int en[])
+void encrypt(long int n, long int key, int size, long int m[], long int en[])
 {
 	long int pt, ct, k;
 	int i = 0;
@@ -70,7 +70,7 @@ void encrypt(long int n, long int key, int size, int m[], int en[])
 	for(i=0;en[i]!=-1;i++)
 		printf("%c",en[i]);*/
 }
-void decrypt(long int n, long int key, int size, int m[], int en[])
+void decrypt(long int n, long int key, int size, long int m[], long int en[])
 {
 	long int pt, ct, k;
 	int i = 0;
