@@ -15,12 +15,12 @@
 #define MDFinal MD5Final
 static void MDFile PROTO_LIST((char *));
 static void MDPrint PROTO_LIST((unsigned char[16]));
-void rsa();
-void gen_sdes_keys(int keys[][8]);
+void rsa(long int *p, long int *q, long int *n, long int *e, long int *d);
+void gen_sdes_keys(int key[], int keys[][8]);
 
 void main()
 {
-	FILE *org = fopen("test.txt","rb"); // origin file
+	FILE *org = fopen("test.txt", "rb"); // origin file
 	FILE *hash; // hash
 	FILE *sum_mac; // origin + mac
 	FILE *sum_enc; // En(origin + mac)
@@ -36,7 +36,7 @@ void main()
 	int keys[2][8];
 	long int p1, q1, n1, e1, d1; // pra1, pua1
 	long int p2, q2, n2, e2, d2; // prb2, pub2
-	 
+
 	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성, 해싱 -------
 	printf("\nGenerate First Public, Private");
 	rsa(&p1, &q1, &n1, &e1, &d1);
@@ -51,24 +51,31 @@ void main()
 	// MD5 hash
 	MDFile("test.txt", size);
 	fflush(stdin);
-	// HASH read
+	// Hash read
 	if ((hash = fopen("hash.txt", "rb")) == NULL)
 		printf("%s can't be opened\n", "hash.txt");
 	fseek(hash, 0, SEEK_END);
 	int hash_size = ftell(hash);
 	fseek(hash, 0, SEEK_SET);
 	char *msg = malloc(sizeof(char)*hash_size);
-	int *m = malloc(sizeof(int)*hash_size);
-	int *en = malloc(sizeof(int)*(hash_size+1));
+	int *m = malloc(sizeof(int)*(hash_size + 1));
+	int *en = malloc(sizeof(int)*(hash_size + 1));
 	fread(msg, 1, hash_size, hash);
 	fclose(hash);
+	printf("\n\nhash 암호화 이전 정수형 출력\n");
 	for (int i = 0; i < hash_size; i++)
 	{
 		m[i] = msg[i];
+		printf("%d", m[i]);
 	}
-	// HASH -> MAC
-	encrypt(n1, d1, hash_size, m, en);
-	// ATTACH MAC AT ORIGIN MSG
+	// Hash -> MAC
+	encrypt(n1, d1, hash_size, m, en); // encryption해서 decryption 되기 전까지는 정상적으로 유지함
+	printf("\n\nhash 암호화 이후 MAC 상태 정수형 출력\n");
+	for (int i = 0; i < hash_size; i++)
+	{
+		printf("%d", en[i]);
+	}
+	// Attach MAC at origin text
 	if ((org = fopen("test.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "test.txt");
 	else
@@ -79,10 +86,7 @@ void main()
 			printf("%s can't be opend\n", "orgNmac.txt");
 		else
 		{
-			char *buffer2 = malloc(sizeof(char)*hash_size); 
-			for (int i = 0; i < hash_size; i++)
-				buffer2[i] = en[i];
-			fwrite(buffer2, 1, hash_size, sum_mac);
+			fwrite(en, 4, hash_size, sum_mac);
 			fwrite(buffer, 1, size, sum_mac);
 		}
 	}
@@ -104,7 +108,7 @@ void main()
 			{
 				pt[i] = bf % 2;
 				bf = bf / 2;
-			//	printf("%d", pt[i]);
+				//	printf("%d", pt[i]);
 			}
 			en_de(pt, 0, keys, ct); // 1 바이트 인코딩 sdes 사용
 			int output = 0;
@@ -113,17 +117,17 @@ void main()
 				if (ct[i] == 1)
 					output += pow(2, (double)(7 - i));
 			}
- 			char ch[1] = {output};
+			char ch[1] = { output };
 			fwrite(ch, 1, 1, sum_enc);
 		}
 		fclose(sum_enc);
 		fclose(sum_mac);
 	}
-	// SESSION KEY ENCRYPTION
+	// Session key encryption
 	int skeyen[11];
 	int enc_size;
 	encrypt(n2, e2, 10, key, skeyen);
-	// SESSION KEY ATTACH
+	// Attach session key
 	if ((sum_enc = fopen("orgNmacenc.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "orgNmac.txt");
 	else {
@@ -133,7 +137,7 @@ void main()
 		char *buffer = malloc(sizeof(char)*enc_size);
 		fread(buffer, 1, enc_size, sum_enc);
 		Etxt = fopen("EText.txt", "wb");
-		char *buffer2 = malloc(sizeof(char)*10);
+		char *buffer2 = malloc(sizeof(char) * 10);
 		for (int i = 0; i < 10; i++)
 			buffer2[i] = skeyen[i];
 		fwrite(buffer2, 1, 10, Etxt);
@@ -142,8 +146,8 @@ void main()
 		fclose(Etxt);
 	}
 	// -------------------수신 모듈 복호화 시작 ----------------
-	// SESSION KEY DETACH, PUT FILE (REMAIN TEXT)
-	if((Etxt = fopen("Etext.txt", "rb")) == NULL)
+	// Detach session key
+	if ((Etxt = fopen("Etext.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "Etext.txt");
 	else {
 		char *buffer = malloc(sizeof(char) * 10);
@@ -156,8 +160,8 @@ void main()
 		fwrite(buffer2, 1, enc_size, sum_dec);
 		fclose(sum_dec);
 	}
-	// SESSION KEY DECRYPTION
-	decrypt(n2, d2, key, skeyen);
+	// Session key decryption
+	decrypt(n2, d2, 10, key, skeyen);
 	// 전체 decryption - - - byte 단위
 	if ((sum_dec = fopen("orgNmacenc2.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "orgNmacenc2.txt");
@@ -185,16 +189,40 @@ void main()
 		fclose(sum_dec);
 		fclose(sum_mac2);
 	}
-	// DETACH MAC FROM FILE
-
-	// mac 복호화
+	// Detach MAC from file
+	if ((sum_mac2 = fopen("orgNmac2.txt", "rb")) == NULL)
+		printf("%s can't be opend\n", "orgNmac2.txt");
+	else {
+		hash2 = fopen("hash2.txt", "wb");
+		Dtxt = fopen("DText.txt", "wb");
+		int *buffer = malloc(sizeof(int)*(hash_size));
+		fread(buffer, 4, hash_size, sum_mac2);
+		printf("\n\nmac 복호화 이전 정수형 출력\n");
+		for (int i = 0; i < hash_size; i++)
+		{
+			//en[i] = buffer[i];
+			printf("%d", buffer[i]);
+		}
+		decrypt(n1, e1, hash_size, m, buffer);
+		printf("\n\nmac 복호화 이후 hash 상태 정수형 출력\n");
+		char *buffer3 = malloc(sizeof(char)*hash_size);
+		for (int i = 0; i < hash_size; i++)
+		{
+			buffer3[i] = m[i];
+			printf("%d", m[i]);
+		}
+		char *buffer2 = malloc(sizeof(char)*size);
+		fread(buffer2, 1, size, sum_mac2);
+		fwrite(buffer3, 1, hash_size, hash2);
+		fwrite(buffer2, 1, size, Dtxt);
+	}
+	// MAC decryption
 	// 오리진 파일 해시와 비교
-	//decrypt(n1, e1, m, en); // mac -> 해시
 
 	return;
 }
 
-/* 
+/*
 	Digests a file and prints the result.
  */
 static void MDFile(filename, size)
@@ -204,7 +232,6 @@ int size;
 	FILE *org; // input file
 	FILE *hash; // output file
 	MD5_CTX context;
-	int len;
 	char *temp = (char*)malloc(sizeof(char)*size);
 	unsigned char digest[16];
 
@@ -214,11 +241,11 @@ int size;
 	else
 	{
 		MDInit(&context);
-//		while (len = fread(buffer, 1, 1000, org))
+		//		while (len = fread(buffer, 1, 1000, org))
 		int len = fread(temp, 1, size, org);
 		MDUpdate(&context, temp, len);
 		MDFinal(digest, &context);
-		for (int i = 0; i<16; i++)
+		for (int i = 0; i < 16; i++)
 			fprintf(hash, "%02x", digest[i]);
 		fclose(org);
 		fclose(hash);
