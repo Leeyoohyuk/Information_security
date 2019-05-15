@@ -31,8 +31,8 @@ void main()
 	fseek(origin, 0, SEEK_END);
 	int size = ftell(origin);
 	fseek(origin, 0, SEEK_SET);
-	int key[10];
-	int skeyen[10];
+	long int key[10];
+	long int skeyen[10];
 	int enc_size;
 	int keys[2][8];
 	long int p1, q1, n1, e1, d1; // pra1, pua1
@@ -63,8 +63,8 @@ void main()
 	int hash_size = ftell(hash);
 	fseek(hash, 0, SEEK_SET);
 	char *msg = malloc(sizeof(char)*hash_size);
-	int *m = malloc(sizeof(int)*(hash_size));
-	int *en = malloc(sizeof(int)*(hash_size));
+	long int *m = malloc(sizeof(long int)*(hash_size));
+	long int *en = malloc(sizeof(long int)*(hash_size));
 	fread(msg, 1, hash_size, hash);
 	fclose(hash);
 	for (int i = 0; i < hash_size; i++)
@@ -193,7 +193,7 @@ void main()
 		printf("%s can't be opend\n", "Receiving_MAC&origin.txt");
 	else {
 		Dtxt = fopen("DText.txt", "wb");
-		int *buffer = malloc(sizeof(int)*(hash_size));
+		long int *buffer = malloc(sizeof(long int)*(hash_size));
 		fread(buffer, 4, hash_size, sum_mac2);
 		decrypt(n1, e1, hash_size, m, buffer);
 		printf("\nMAC Decryption Result (hash) : ");
