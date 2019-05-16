@@ -14,13 +14,14 @@
 #define MDUpdate MD5Update
 #define MDFinal MD5Final
 static void MDFile PROTO_LIST((char *));
+static void MDString PROTO_LIST((char *));
 static void MDPrint PROTO_LIST((unsigned char[16]));
 void rsa(long int *p, long int *q, long int *n, long int *e, long int *d);
 void gen_sdes_keys(int key[], int keys[][8]);
 
 void main()
 {
-	FILE *origin = fopen("test.txt", "rb"); // origin file
+	FILE *origin = fopen("Test.txt", "rb"); // origin file
 	FILE *hash; // hash
 	FILE *sum_mac; // origin + mac
 	FILE *sum_enc; // En(origin + mac)
@@ -38,22 +39,22 @@ void main()
 	long int p1, q1, n1, e1, d1; // pra1, pua1
 	long int p2, q2, n2, e2, d2; // prb2, pub2
 
-	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성 -----------
+	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성 ------------
 	printf("\nGenerate First Public, Private\n");
 	rsa(&p1, &q1, &n1, &e1, &d1);
 	printf("\nGenerate Second Public, Private\n");
 	rsa(&p2, &q2, &n2, &e2, &d2);
 	printf("\nFirst RSA KEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p1, q1, n1, e1, d1);
 	printf("\nSecond RSA KEY P: %ld Q: %ld N: %ld E: %ld D: %ld\n", p2, q2, n2, e2, d2);
-	printf("\nGenerate Session Key1, 2 for DES (Random Generated)\n");
+	printf("\nGenerate Session Key for DES (Random Generated)\n");
 	gen_sdes_keys(key, keys);
 	printf("\n");
-	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성 -----------
+	// ------------ 세션키1,2 생성, pua1,2, pub1,2 생성 ------------
 
 	// ========================== 송신부 시작 ==========================
 	
 	// MD5 hash
-	MDFile("test.txt", size);
+	MDFile("Test.txt", size);
 	fflush(stdin);
 
 	// Hash read
@@ -71,8 +72,11 @@ void main()
 	{
 		m[i] = msg[i];
 	}
+
 	// Hash -> MAC
+	printf("================================== PGP 시나리오 시작 ==================================");
 	encrypt(n1, d1, hash_size, m, en);
+	printf("\nHash -> MAC 생성 완료\n");
 
 	// Attach MAC at origin text
 	if ((sum_mac = fopen("Sending_MAC&origin.txt", "wb")) == NULL)
@@ -83,6 +87,7 @@ void main()
 		fread(buffer, 1, size, origin);
 		fwrite(en, 4, hash_size, sum_mac);
 		fwrite(buffer, 1, size, sum_mac);
+		printf("\n\"test.txt\" + MAC 결과 \"Sending_MAC&origin.txt\" 파일 생성 완료\n");
 	}
 	fclose(origin);
 	fclose(sum_mac);
@@ -115,10 +120,12 @@ void main()
 		}
 		fclose(sum_enc);
 		fclose(sum_mac);
+		printf("\nByte 단위 암호화 결과 \"Encrypted.txt\" 생성 완료\n");
 	}
 
 	// Session key encryption
 	encrypt(n2, e2, 10, key, skeyen);
+	printf("\n10 Byte Session Key 암호화 완료\n");
 
 	// Attach session key
 	if ((sum_enc = fopen("Encrypted.txt", "rb")) == NULL)
@@ -137,11 +144,13 @@ void main()
 		fwrite(buffer, 1, enc_size, Etxt);
 		fclose(sum_enc);
 		fclose(Etxt);
+		printf("\n\"Encrypted.txt\" + 암호화된 Session Key 결과 \"Etext,txt\" 생성 완료\n");
 	}
+	printf("\n송신부 종료!!\n");
 	// ========================== 송신부 종료 ==========================
 
 	// ========================== 수신부 시작 ==========================
-
+	printf("\n수신부 시작!!\n");
 	// Detach session key
 	if ((Etxt = fopen("Etext.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "Etext.txt");
@@ -155,10 +164,12 @@ void main()
 		sum_dec = fopen("En(Origin&MAC).txt", "wb");
 		fwrite(buffer2, 1, enc_size, sum_dec);
 		fclose(sum_dec);
+		printf("\n\"Etext.txt\" 에서 암호화된 Session Key 부분 분리 후 \"En(Origin&MAC),txt\" 생성 완료\n");
 	}
 
 	// Session key decryption
 	decrypt(n2, d2, 10, key, skeyen);
+	printf("\n10 Byte Session Key 복호화 완료\n");
 
 	// Total Decryption
 	if ((sum_dec = fopen("En(Origin&MAC).txt", "rb")) == NULL)
@@ -186,34 +197,68 @@ void main()
 		}
 		fclose(sum_dec);
 		fclose(sum_mac2);
+		printf("\nByte 단위 복호화 결과 \"Receiving_MAC&origin.txt\" 생성 완료\n");
 	}
 	// Detach MAC from file
-	int Dsize = 0;
 	if ((sum_mac2 = fopen("Receiving_MAC&origin.txt", "rb")) == NULL)
 		printf("%s can't be opend\n", "Receiving_MAC&origin.txt");
 	else {
-		Dtxt = fopen("DText.txt", "wb");
+		char compare_string1[33], *string_pointer1;
+		char compare_string2[33], *string_pointer2;
+		string_pointer1 = &compare_string1[0];
+		string_pointer2 = &compare_string2[0];
+
 		long int *buffer = malloc(sizeof(long int)*(hash_size));
 		fread(buffer, 4, hash_size, sum_mac2);
+		printf("\n\"Receiving_MAC&origin.txt\" 에서 MAC분리 완료\n");
 		decrypt(n1, e1, hash_size, m, buffer);
+		printf("\nCompare MAC Decrtyption Result to Message Hash Result");
 		printf("\nMAC Decryption Result (hash) : ");
 		for (int i = 0; i < hash_size; i++)
 		{
+			string_pointer1 += sprintf(string_pointer1, "%c", m[i]);
 			printf("%c", m[i]);
 		}
-		printf("\n");
-		char *buffer2 = malloc(sizeof(char)*size);
-		Dsize = fread(buffer2, 1, size, sum_mac2);
-		fwrite(buffer2, 1, size, Dtxt);
-		fclose(sum_mac2);
-		fclose(Dtxt);
-	}
-	Dtxt = fopen("DText.txt", "rb");
-	MDFile("Dtext.txt", size);
+		int temp = ftell(sum_mac2);
+		fseek(sum_mac2, 0, SEEK_END);
+		int read_size = ftell(sum_mac2) - temp;
+		fseek(sum_mac2, temp, SEEK_SET);
+		char *buffer2 = (char*)malloc(sizeof(char) * read_size);
+		fread(buffer2, 1, read_size, sum_mac2);
 
+		printf("\nMessage Hash Result : ");
+		unsigned char digest[16];
+		MDString(buffer2, read_size, digest);
+		for (int i = 0; i < 16; i++)
+		{
+			string_pointer2 += sprintf(string_pointer2, "%02x", digest[i]);
+		}
+		int check = 1;
+		for (int i = 0; i < 33; i++)
+		{
+			if (compare_string1[i] != compare_string2[i])
+				check = 0;
+		}
+
+		if (check)
+		{
+			printf("\n비교 결과 정상 \"Dtext.txt\"를 생성합니다.\n");
+			Dtxt = fopen("DText.txt", "wb");
+			fwrite(buffer2, 1, size, Dtxt);
+			fclose(Dtxt);
+		}
+		else
+		{
+			printf("\nError : 메세지 위-변조 발생 의심\n");
+		}
+		fclose(sum_mac2);
+		printf("================================== PGP 시나리오 종료 ==================================\n");
+	}
+	system("pause");
 	return;
 }
 
+// ================================================================================
 /*
 	Digests a file and prints the result.
  */
@@ -226,7 +271,6 @@ int size;
 	MD5_CTX context;
 	char *temp = (char*)malloc(sizeof(char)*size);
 	unsigned char digest[16];
-
 	hash = fopen("hash.txt", "wb");
 	if ((org = fopen(filename, "rb")) == NULL)
 		printf("%s can't be opened\n", filename);
@@ -234,8 +278,8 @@ int size;
 	{
 		MDInit(&context);
 		//		while (len = fread(buffer, 1, 1000, org))
-		int len = fread(temp, 1, size, org);
-		MDUpdate(&context, temp, len);
+		fread(temp, 1, size, org);
+		MDUpdate(&context, temp, size);
 		MDFinal(digest, &context);
 		for (int i = 0; i < 16; i++)
 			fprintf(hash, "%02x", digest[i]);
@@ -246,6 +290,23 @@ int size;
 		printf("\n");
 		free(temp);
 	}
+}
+
+/* Digests a string and prints the result.
+ */
+static void MDString(string, size, temp)
+char *string;
+int size;
+char temp[];
+{
+	MD5_CTX context;
+	unsigned char digest[16];
+	MDInit(&context);
+	MDUpdate(&context, string, size);
+	MDFinal(digest, &context);
+	MDPrint(digest);
+	memcpy(temp, digest, sizeof(digest));
+	printf("\n");
 }
 
 static void MDPrint(digest)
@@ -261,17 +322,24 @@ void rsa(long int *p, long int *q, long int *n, long int *e, long int *d)
 {
 	long int t, flag;
 
-	printf("\nENTER FIRST PRIME NUMBER\n");
-	scanf("%d", p);
+	do {
+		printf("\nENTER FIRST PRIME NUMBER (Number must be bigger than 10)\n");
+		scanf("%ld", p);
+	} while (*p < 10);
 	flag = prime(*p);
+
 	if (flag == 0)
 	{
 		printf("\nWRONG INPUT\n");
 		getch();
 		exit(1);
 	}
-	printf("\nENTER ANOTHER PRIME NUMBER\n");
-	scanf("%d", q);
+
+	do {
+		printf("\nENTER ANOTHER PRIME NUMBER (Number must be bigger than 10)\n");
+		scanf("%ld", q);
+	} while (*q < 10);
+
 	flag = prime(*q);
 	if (flag == 0 || *p == *q)
 	{

@@ -50,7 +50,8 @@ long int cd(long int x, long int t)
 
 void encrypt(long int n, long int key, int size, long int m[], long int en[])
 {
-	long int pt, ct, k;
+	long int pt, ct;
+	long long k;
 	int i = 0;
 	while (i != size)
 	{
@@ -68,7 +69,8 @@ void encrypt(long int n, long int key, int size, long int m[], long int en[])
 }
 void decrypt(long int n, long int key, int size, long int m[], long int en[])
 {
-	long int pt, ct, k;
+	long int pt, ct;
+	long long k;
 	int i = 0;
 	while (i != size)
 	{
